@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airport Control System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--yel:#ffcd00;--ink:#14181d;--board:#10151b;--amber:#ffb81c;--dim:#7d8b99;--paper:#f6f4ee;--floor:#c9ccd0;--red:#ff5a4d;--grn:#4fd67f;
+        --cond:"Barlow Condensed","Arial Narrow",Arial,sans-serif;--sans:Barlow,Arial,sans-serif}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--floor);color:var(--ink);font:16px/1.4 var(--sans)}
+  .top{background:var(--yel);color:#000;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 24px;border-bottom:6px solid #000}
+  .top h1{margin:0;font:700 36px/1 var(--cond);letter-spacing:.5px}
+  .top p{margin:5px 0 0;font-weight:500;font-size:14px}
+  .clk{background:#000;color:var(--amber);padding:6px 16px;text-align:right;border-radius:3px}
+  .clk span{display:block;font:500 14px var(--cond);color:var(--dim);letter-spacing:.5px}
+  #clock{font:600 36px/1 var(--cond);font-variant-numeric:tabular-nums;letter-spacing:2px}
+  nav{display:flex;flex-wrap:wrap;gap:8px;padding:20px 24px 0;max-width:1340px;margin:0 auto}
+  nav button{display:flex;align-items:baseline;gap:10px;background:#e9eaec;border:2px solid var(--ink);border-bottom:0;border-radius:6px 6px 0 0;padding:8px 20px;font:600 21px var(--cond);color:var(--ink);cursor:pointer}
+  nav button i{font:500 14px var(--sans);font-style:normal;color:#5b6672}
+  nav button.on{background:var(--board);color:var(--amber)}
+  nav button.on i{color:var(--dim)}
+  main{max-width:1340px;margin:0 auto;padding:0 24px 40px}
+  .board{background:var(--board);border:2px solid var(--ink);border-radius:0 6px 6px 6px;padding:16px 18px 18px;box-shadow:0 6px 0 rgba(0,0,0,.18)}
+  .bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .bar h2{margin:0;font:600 30px var(--cond);color:var(--amber);letter-spacing:.5px}
+  #count{color:var(--dim);font-size:14px;margin-right:10px}
+  #q{width:230px;background:#1a212a;border:1px solid #2c3743;color:#fff;padding:7px 10px;border-radius:3px;font:15px var(--sans)}
+  .wrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font:600 20px var(--cond);text-transform:uppercase;letter-spacing:.6px;font-variant-numeric:tabular-nums;color:var(--amber)}
+  th{color:var(--dim);font-weight:500;font-size:14px;text-align:left;padding:6px 14px;border-bottom:2px solid #2c3743;white-space:nowrap}
+  td{padding:9px 14px;border-bottom:1px solid #1f2832;white-space:nowrap}
+  td:first-child{color:#fff}
+  tbody tr:hover td{background:#18202a}
+  td[class^=s-]::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:10px;background:currentColor}
+  .s-Occupied{color:var(--red)}.s-Free{color:var(--grn)}.s-Expecting{color:var(--amber)}.s-Under{color:var(--dim)}
+  .s-Expecting::before{animation:blink 1.6s infinite}
+  @keyframes blink{0%,55%{opacity:1}60%,100%{opacity:.2}}
+  @media (prefers-reduced-motion:reduce){.s-Expecting::before{animation:none}}
+  td.act{text-align:right}
+  td.act button{background:none;border:1px solid #3a4756;color:#9fb0c0;font:500 13px var(--sans);text-transform:none;letter-spacing:0;padding:3px 9px;margin-left:5px;border-radius:3px;cursor:pointer}
+  td.act button:hover{background:var(--amber);color:#000;border-color:var(--amber)}
+  .panel{margin-top:26px;background:var(--paper);border:2px solid var(--ink);border-left:12px solid var(--yel);border-radius:4px;padding:18px 20px}
+  .panel h2{margin:0 0 14px;font:600 28px var(--cond)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px 16px;margin-bottom:16px}
+  label{display:block;font-weight:500;font-size:14px;color:#46515c}
+  label input,label select{display:block;width:100%;margin-top:4px;padding:8px 9px;background:#fff;border:1.5px solid #8b949c;border-radius:3px;font:16px var(--sans);color:var(--ink)}
+  input:disabled,select:disabled{background:#e4e2db;color:#777}
+  .btn{background:#000;color:var(--yel);border:0;border-radius:3px;font:600 20px var(--cond);letter-spacing:.5px;padding:8px 24px;cursor:pointer;margin-right:8px}
+  .btn.alt{background:none;color:var(--ink);border:1.5px solid var(--ink)}
+  #msg{font-weight:600;margin-left:6px}
+  .bad{color:#b3261e}.good{color:#1b7a3d}
+  :focus-visible{outline:3px solid #1a5fd0;outline-offset:2px}
+</style>
+
+</head>
+<body>
+<header class="top"><div><h1>Airport Control System</h1><p>DBMS Lab Project</p></div><div class="clk"><span id="date"></span><b id="clock"></b></div></header>
+<nav id="nav"></nav>
+<main>
+  <section class="board">
+    <div class="bar"><h2 id="title"></h2><div><span id="count"></span><input id="q" placeholder="Search this board" oninput="render()"></div></div>
+    <div class="wrap"><table><thead id="head"></thead><tbody id="body"></tbody></table></div>
+  </section>
+  <section class="panel">
+    <h2 id="ftitle"></h2>
+    <div class="grid" id="form"></div>
+    <button class="btn" onclick="save()">Save</button>
+    <button class="btn alt" onclick="resetForm()">Clear</button>
+    <span id="msg"></span>
+  </section>
+</main>
+
+<script>
+// ---- paste your own Supabase values here ----
+const SUPABASE_URL = 'https://vdinpvuoxekmmljdhvzl.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZkaW5wdnVveGVrbW1samRodnpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5MDczNDcsImV4cCI6MjEwNjQ4MzM0N30.9IfBNoid3VLllBz5id9C3yFUab_E9HIgGZvw8PCbavY';
+// ---------------------------------------------
+
+const D = {flight:[], terminal:[], crew:[], passenger:[]};
+const PK = {flight:['flight_id','airline_id'], terminal:['terminal_no'], crew:['crew_id'], passenger:['passenger_id']};
+const ORDER = {flight:'arrival_time', terminal:'terminal_no', crew:'crew_id', passenger:'passenger_id'};
+const NAME = {flight:'Flights (arrivals)', terminal:'Terminals', crew:'Crew', passenger:'Passengers'};
+const ONE = {flight:'flight', terminal:'terminal', crew:'crew member', passenger:'passenger'};
+let cur = 'flight', editing = null;
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const airlineName = id => (D.flight.find(f => f.airline_id == id) || {}).airline_name || '';
+const crewName = id => (D.crew.find(c => c.crew_id == id) || {}).name || '';
+const when = v => v ? new Date(v).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',hour12:false}) : '';
+const age = d => d ? Math.floor((Date.now() - new Date(d)) / 31557600000) : '';
+
+// what each board shows: [heading, function(row)]
+const BOARD = {
+  flight:[['ID',r=>r.airline_id],['Flight',r=>r.flight_id],['Airline',r=>r.airline_name],['Destination',r=>r.destination],
+          ['Arrival',r=>when(r.arrival_time)],['Terminal',r=>r.terminal_number],['Seats',r=>r.capacity],['Crew',r=>crewName(r.crew_id)]],
+  terminal:[['Terminal',r=>r.terminal_no],['Flight',r=>r.flight_id],['Airline',r=>airlineName(r.airline_id)],['Status',r=>r.status]],
+  crew:[['ID',r=>r.crew_id],['Name',r=>r.name],['Role',r=>r.role],['Airline',r=>airlineName(r.airline_id)],['Phone',r=>r.phone_number]],
+  passenger:[['ID',r=>r.passenger_id],['Name',r=>r.name],['Passport',r=>r.passport_details],['Airline',r=>airlineName(r.airline_id)],
+             ['Seat',r=>r.seat_number],['Phone',r=>r.phone_number],['Age',r=>age(r.dob)]]
+};
+
+// form fields: k = column, num = send as number, opts = dropdown options
+const airlineOpts = () => D.flight.map(f => [f.airline_id, f.airline_id + ' - ' + f.airline_name]);
+const F = {
+  flight:[{k:'flight_id',l:'Flight number',req:1,pk:1},{k:'airline_id',l:'Airline ID',t:'number',req:1,pk:1},
+          {k:'airline_name',l:'Airline name',req:1},{k:'destination',l:'Destination'},
+          {k:'arrival_time',l:'Arrival time',t:'datetime-local'},
+          {k:'terminal_number',l:'Terminal',num:1,opts:()=>[['','-'],...D.terminal.map(t=>[t.terminal_no,'Terminal '+t.terminal_no])]},
+          {k:'capacity',l:'Capacity',t:'number',req:1},
+          {k:'crew_id',l:'Crew',num:1,opts:()=>[['','-'],...D.crew.map(c=>[c.crew_id,c.crew_id+' - '+c.name])]}],
+  terminal:[{k:'terminal_no',l:'Terminal number',t:'number',req:1,pk:1},
+            {k:'_flight',l:'Flight',opts:()=>[['','- none -'],...D.flight.map(f=>[f.flight_id+'|'+f.airline_id,f.flight_id+' - '+f.airline_name])]},
+            {k:'status',l:'Status',req:1,opts:()=>['Occupied','Free','Expecting Arrival','Under Maintenance'].map(s=>[s,s])}],
+  crew:[{k:'crew_id',l:'Crew ID',t:'number',req:1,pk:1},{k:'name',l:'Name',req:1},
+        {k:'role',l:'Role',req:1,opts:()=>['Pilot','Co-pilot','Cabin Crew','Flight Engineer','Ground Staff'].map(s=>[s,s])},
+        {k:'airline_id',l:'Airline',num:1,opts:()=>[['','-'],...airlineOpts()]},{k:'phone_number',l:'Phone (10 digits)'}],
+  passenger:[{k:'passenger_id',l:'Passenger ID',t:'number',req:1,pk:1},{k:'name',l:'Name',req:1},
+             {k:'passport_details',l:'Passport number',req:1},{k:'airline_id',l:'Airline',num:1,opts:()=>[['','-'],...airlineOpts()]},
+             {k:'seat_number',l:'Seat number'},{k:'phone_number',l:'Phone (10 digits)'},{k:'dob',l:'Date of birth',t:'date'}]
+};
+
+async function api(path, method='GET', body){
+  const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {method,
+    headers:{apikey:SUPABASE_KEY, Authorization:'Bearer '+SUPABASE_KEY, 'Content-Type':'application/json', Prefer:'return=minimal'},
+    body: body ? JSON.stringify(body) : undefined});
+  if(!r.ok){
+    const e = await r.json().catch(()=>({}));
+    const known = {'23505':'That ID (or passport / airline ID) already exists.','23503':'The chosen flight, airline or crew does not exist.',
+                   '23514':'A value breaks the table rules (check phone, capacity, date or status).','23502':'A required field is empty.'};
+    throw new Error(known[e.code] || e.message || r.statusText);
+  }
+  return method === 'GET' ? r.json() : null;
+}
+
+function say(t, bad){ const m = document.getElementById('msg'); m.textContent = t; m.className = bad ? 'bad' : 'good'; }
+
+async function loadAll(){
+  try{
+    const res = await Promise.all(Object.keys(D).map(t => api(`${t}?select=*&order=${ORDER[t]}`)));
+    Object.keys(D).forEach((t,i) => D[t] = res[i]);
+  }catch(e){ say('Could not load data: ' + e.message, true); }
+  render();
+}
+
+function render(){
+  const q = document.getElementById('q').value.toLowerCase(), cols = BOARD[cur];
+  document.getElementById('title').textContent = NAME[cur];
+  Object.keys(D).forEach(t => document.getElementById('n_'+t).textContent = D[t].length);
+  document.getElementById('head').innerHTML = '<tr>' + cols.map(c => `<th>${c[0]}</th>`).join('') + '<th></th></tr>';
+  const shown = [];
+  D[cur].forEach((r,i) => {
+    const cells = cols.map(c => c[1](r));
+    if(!q || cells.join(' ').toLowerCase().includes(q)) shown.push([cells,i]);
+  });
+  document.getElementById('count').textContent = shown.length + ' / ' + D[cur].length;
+  document.getElementById('body').innerHTML = shown.map(([cells,i]) => '<tr>' + cells.map((v,j) => {
+    const cls = cols[j][0]==='Status' ? ' class="s-'+String(v).split(' ')[0]+'"' : '';
+    return `<td${cls}>${esc(v)}</td>`;
+  }).join('') + `<td class="act"><button onclick="edit(${i})">Edit</button><button onclick="del(${i})">Delete</button></td></tr>`).join('')
+    || `<tr><td colspan="${cols.length+1}">No records found</td></tr>`;
+}
+
+function resetForm(){
+  editing = null;
+  document.getElementById('ftitle').textContent = 'Add new ' + ONE[cur];
+  document.getElementById('form').innerHTML = F[cur].map(f => {
+    const id = 'f_' + f.k;
+    const input = f.opts
+      ? `<select id="${id}">${f.opts().map(o => `<option value="${esc(o[0])}">${esc(o[1])}</option>`).join('')}</select>`
+      : `<input id="${id}" type="${f.t || 'text'}"${f.t==='number' ? ' min="1"' : ''}>`;
+    return `<label>${f.l}${f.req ? ' *' : ''}${input}</label>`;
+  }).join('');
+  const first = PK[cur][PK[cur].length - 1];   // suggest the next free number for id fields
+  const idField = F[cur].find(f => f.t === 'number' && f.pk);
+  if(idField) document.getElementById('f_' + idField.k).value = Math.max(0, ...D[cur].map(r => r[idField.k])) + 1;
+}
+
+function show(t){
+  cur = t; document.getElementById('q').value = ''; say('');
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  resetForm(); render();
+}
+
+function edit(i){
+  const r = editing = D[cur][i];
+  document.getElementById('ftitle').textContent = 'Edit ' + ONE[cur];
+  F[cur].forEach(f => {
+    const el = document.getElementById('f_' + f.k);
+    let v = f.k === '_flight' ? (r.flight_id ? r.flight_id + '|' + r.airline_id : '') : r[f.k];
+    if(f.t === 'datetime-local' && v) v = String(v).slice(0,16);
+    el.value = v ?? '';
+    el.disabled = !!f.pk;
+  });
+  say('Editing - change the fields and press Save.');
+  document.getElementById('ftitle').scrollIntoView({behavior:'smooth'});
+}
+
+async function save(){
+  const data = {};
+  for(const f of F[cur]){
+    const v = document.getElementById('f_' + f.k).value.trim();
+    if(f.req && v === '') return say(f.l + ' is required.', true);
+    if(f.k === '_flight'){
+      const [fid, aid] = v ? v.split('|') : [null, null];
+      data.flight_id = fid; data.airline_id = aid ? Number(aid) : null; continue;
+    }
+    if(f.k.includes('phone') && v && !/^\d{10}$/.test(v)) return say('Phone must be exactly 10 digits.', true);
+    if(f.k === 'capacity' && Number(v) < 1) return say('Capacity must be at least 1.', true);
+    if(f.k === 'dob' && v > new Date().toISOString().slice(0,10)) return say('Date of birth cannot be in the future.', true);
+    data[f.k] = v === '' ? null : (f.t === 'number' || f.num ? Number(v) : v);
+  }
+  try{
+    if(editing){
+      F[cur].filter(f => f.pk).forEach(f => delete data[f.k]);
+      await api(cur + '?' + PK[cur].map(k => `${k}=eq.${encodeURIComponent(editing[k])}`).join('&'), 'PATCH', data);
+    }else await api(cur, 'POST', data);
+    const done = editing ? 'Record updated.' : 'Record added.';
+    await loadAll(); resetForm(); say(done);
+  }catch(e){ say('Error: ' + e.message, true); }
+}
+
+async function del(i){
+  const r = D[cur][i];
+  if(!confirm('Delete this record?')) return;
+  try{
+    await api(cur + '?' + PK[cur].map(k => `${k}=eq.${encodeURIComponent(r[k])}`).join('&'), 'DELETE');
+    await loadAll(); resetForm(); say('Record deleted.');
+  }catch(e){ say('Error: ' + e.message, true); }
+}
+
+document.getElementById('nav').innerHTML = Object.keys(NAME).map(t => `<button data-t="${t}" onclick="show('${t}')">${NAME[t].split(' ')[0]}<i id="n_${t}"></i></button>`).join('');
+function tick(){const n=new Date();document.getElementById('clock').textContent=n.toLocaleTimeString('en-GB');
+  document.getElementById('date').textContent=n.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}
+tick(); setInterval(tick,1000);
+loadAll().then(() => show('flight'));
+</script>
+</body>
+</html>
