@@ -54,11 +54,31 @@
   #msg{font-weight:600;margin-left:6px}
   .bad{color:#b3261e}.good{color:#1b7a3d}
   :focus-visible{outline:3px solid #1a5fd0;outline-offset:2px}
+  [hidden]{display:none!important}
+  .clk button{background:none;border:0;color:var(--yel);font:600 14px var(--cond);text-decoration:underline;cursor:pointer;padding:0;margin-left:8px}
+  #auth{max-width:470px;margin:40px auto;padding:0 20px}
+  .card{background:var(--paper);border:2px solid var(--ink);border-left:12px solid var(--yel);border-radius:4px;padding:22px 24px;box-shadow:0 6px 0 rgba(0,0,0,.18)}
+  .card h2{margin:0 0 4px;font:600 32px var(--cond)}
+  .sub{margin:0 0 16px;color:#46515c;font-size:14px}
+  .stack{display:grid;gap:12px;margin-bottom:16px}
+  .link{background:none;border:0;color:#1a5fd0;font:15px var(--sans);text-decoration:underline;cursor:pointer;padding:0}
+  #amsg{display:block;margin-top:12px;font-weight:600}
 </style>
 
 </head>
 <body>
-<header class="top"><div><h1>Airport Control System</h1><p>DBMS Lab Project</p></div><div class="clk"><span id="date"></span><b id="clock"></b></div></header>
+<header class="top"><div><h1>Airport Control System</h1><p>DBMS Lab Project</p></div><div class="clk"><span id="date"></span><b id="clock"></b><span id="who" hidden><u id="whoname" style="text-decoration:none"></u><button onclick="logout()">Log out</button></span></div></header>
+<section id="auth" hidden>
+  <div class="card">
+    <h2 id="atitle"></h2>
+    <p class="sub">Authorised air traffic controllers only.</p>
+    <div class="stack" id="aform"></div>
+    <button class="btn" id="abtn" onclick="submitAuth()"></button>
+    <p style="margin:14px 0 0"><button class="link" id="aswitch" onclick="toggleAuth()"></button></p>
+    <span id="amsg"></span>
+  </div>
+</section>
+<div id="app" hidden>
 <nav id="nav"></nav>
 <main>
   <section class="board">
@@ -73,6 +93,7 @@
     <span id="msg"></span>
   </section>
 </main>
+</div>
 
 <script>
 // ---- paste your own Supabase values here ----
@@ -86,6 +107,7 @@ const ORDER = {flight:'arrival_time', terminal:'terminal_no', crew:'crew_id', pa
 const NAME = {flight:'Flights (arrivals)', terminal:'Terminals', crew:'Crew', passenger:'Passengers'};
 const ONE = {flight:'flight', terminal:'terminal', crew:'crew member', passenger:'passenger'};
 let cur = 'flight', editing = null;
+let sess = JSON.parse(localStorage.getItem('sess') || 'null'), mode = 'login';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const airlineName = id => (D.flight.find(f => f.airline_id == id) || {}).airline_name || '';
@@ -123,10 +145,14 @@ const F = {
              {k:'seat_number',l:'Seat number'},{k:'phone_number',l:'Phone (10 digits)'},{k:'dob',l:'Date of birth',t:'date'}]
 };
 
-async function api(path, method='GET', body){
+async function api(path, method='GET', body, retried){
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {method,
-    headers:{apikey:SUPABASE_KEY, Authorization:'Bearer '+SUPABASE_KEY, 'Content-Type':'application/json', Prefer:'return=minimal'},
+    headers:{apikey:SUPABASE_KEY, Authorization:'Bearer '+(sess ? sess.access_token : SUPABASE_KEY), 'Content-Type':'application/json', Prefer:'return=minimal'},
     body: body ? JSON.stringify(body) : undefined});
+  if(r.status === 401 && !retried && sess){
+    try{ await refresh(); return api(path, method, body, true); }
+    catch(e){ logout(); throw new Error('Session expired. Please log in again.'); }
+  }
   if(!r.ok){
     const e = await r.json().catch(()=>({}));
     const known = {'23505':'That ID (or passport / airline ID) already exists.','23503':'The chosen flight, airline or crew does not exist.',
@@ -236,7 +262,80 @@ document.getElementById('nav').innerHTML = Object.keys(NAME).map(t => `<button d
 function tick(){const n=new Date();document.getElementById('clock').textContent=n.toLocaleTimeString('en-GB');
   document.getElementById('date').textContent=n.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}
 tick(); setInterval(tick,1000);
-loadAll().then(() => show('flight'));
+
+// ---------- controller login / register ----------
+const saveSess = x => { sess = x; x ? localStorage.setItem('sess', JSON.stringify({access_token:x.access_token, refresh_token:x.refresh_token})) : localStorage.removeItem('sess'); };
+
+async function auth(path, body){
+  const r = await fetch(SUPABASE_URL + '/auth/v1/' + path, {method:'POST',
+    headers:{apikey:SUPABASE_KEY, 'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok){
+    const m = j.msg || j.error_description || j.message || 'Request failed';
+    throw new Error(/database error/i.test(m) ? 'Could not register: this employee ID or email is already in use, or a field is invalid.' : m);
+  }
+  return j;
+}
+async function refresh(){ saveSess(await auth('token?grant_type=refresh_token', {refresh_token: sess.refresh_token})); }
+function logout(){ saveSess(null); start(); }
+
+const AF = {
+  login:[{k:'email',l:'Email',t:'email',ac:'username'},{k:'password',l:'Password',t:'password',ac:'current-password'}],
+  register:[{k:'full_name',l:'Full name *'},{k:'employee_id',l:'Employee ID *'},{k:'email',l:'Email *',t:'email'},
+            {k:'phone_number',l:'Phone (10 digits) *'},{k:'shift',l:'Shift',opts:['Morning','Evening','Night']},
+            {k:'password',l:'Password (min 6 characters) *',t:'password',ac:'new-password'},{k:'confirm',l:'Confirm password *',t:'password',ac:'new-password'}]
+};
+function drawAuth(){
+  const login = mode === 'login';
+  document.getElementById('atitle').textContent = login ? 'Controller login' : 'Register controller';
+  document.getElementById('abtn').textContent = login ? 'Log in' : 'Register';
+  document.getElementById('aswitch').textContent = login ? 'New controller? Register here' : 'Already registered? Log in';
+  document.getElementById('aform').innerHTML = AF[mode].map(f => '<label>' + f.l + (f.opts
+    ? `<select id="a_${f.k}">${f.opts.map(o => `<option>${o}</option>`).join('')}</select>`
+    : `<input id="a_${f.k}" type="${f.t || 'text'}" autocomplete="${f.ac || 'off'}">`) + '</label>').join('');
+  document.getElementById('amsg').textContent = '';
+}
+function toggleAuth(){ mode = mode === 'login' ? 'register' : 'login'; drawAuth(); }
+document.getElementById('aform').addEventListener('keydown', e => { if(e.key === 'Enter') submitAuth(); });
+
+async function submitAuth(){
+  const v = {}, m = document.getElementById('amsg');
+  AF[mode].forEach(f => v[f.k] = document.getElementById('a_' + f.k).value.trim());
+  m.className = 'bad';
+  try{
+    if(mode === 'register'){
+      if(!v.full_name || !v.employee_id || !v.email || !v.phone_number || !v.password) throw new Error('Please fill in every field.');
+      if(!/^\d{10}$/.test(v.phone_number)) throw new Error('Phone must be exactly 10 digits.');
+      if(v.password.length < 6) throw new Error('Password must be at least 6 characters.');
+      if(v.password !== v.confirm) throw new Error('Passwords do not match.');
+      const j = await auth('signup', {email:v.email, password:v.password,
+        data:{full_name:v.full_name, employee_id:v.employee_id, phone_number:v.phone_number, shift:v.shift}});
+      if(!j.access_token){ mode = 'login'; drawAuth(); const n = document.getElementById('amsg'); n.className = 'good';
+        n.textContent = 'Registered. Confirm your email, then log in.'; return; }
+      saveSess(j);
+    }else{
+      if(!v.email || !v.password) throw new Error('Enter your email and password.');
+      saveSess(await auth('token?grant_type=password', {email:v.email, password:v.password}));
+    }
+    start();
+  }catch(e){ m.textContent = e.message; }
+}
+
+async function loadMe(){
+  try{
+    const r = await api('controller?select=full_name,employee_id');
+    if(r[0]) document.getElementById('whoname').textContent = r[0].full_name + ' (' + r[0].employee_id + ')';
+  }catch(e){}
+}
+
+function start(){
+  document.getElementById('auth').hidden = !!sess;
+  document.getElementById('app').hidden = !sess;
+  document.getElementById('who').hidden = !sess;
+  if(sess){ loadAll().then(() => show('flight')); loadMe(); }
+  else { mode = 'login'; drawAuth(); }
+}
+start();
 </script>
 </body>
 </html>
