@@ -107,3 +107,56 @@ begin
     execute format('grant all on %I to anon', t);
   end loop;
 end $$;
+
+
+-- ================= PART 2: controller login =================
+-- Passwords are handled by Supabase Auth (hashed). This table holds the controller's profile.
+
+drop function if exists handle_new_controller() cascade;
+drop table if exists controller cascade;
+
+create table controller (
+  controller_id uuid primary key references auth.users(id) on delete cascade,
+  full_name     text not null,
+  employee_id   text not null unique,
+  email         text not null unique,
+  phone_number  text not null check (phone_number ~ '^[0-9]{10}$'),
+  shift         text not null default 'Morning' check (shift in ('Morning','Evening','Night')),
+  created_at    timestamptz not null default now()
+);
+
+-- trigger: when someone registers, a controller row is created automatically from the form data
+create function handle_new_controller() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into controller (controller_id, full_name, employee_id, email, phone_number, shift)
+  values (new.id,
+          new.raw_user_meta_data->>'full_name',
+          new.raw_user_meta_data->>'employee_id',
+          new.email,
+          new.raw_user_meta_data->>'phone_number',
+          coalesce(nullif(new.raw_user_meta_data->>'shift',''), 'Morning'));
+  return new;
+end $$;
+
+create trigger on_controller_signup after insert on auth.users
+for each row execute function handle_new_controller();
+
+-- a controller can only see and edit their own profile
+alter table controller enable row level security;
+create policy own_profile_read   on controller for select to authenticated using (controller_id = auth.uid());
+create policy own_profile_update on controller for update to authenticated
+  using (controller_id = auth.uid()) with check (controller_id = auth.uid());
+grant select, update on controller to authenticated;
+
+-- airport tables: only logged-in controllers can read or write (anonymous visitors get nothing)
+do $$
+declare t text;
+begin
+  foreach t in array array['crew','passenger','flight','terminal'] loop
+    execute format('drop policy if exists open_all on %I', t);
+    execute format('drop policy if exists staff_only on %I', t);
+    execute format('create policy staff_only on %I for all to authenticated using (true) with check (true)', t);
+    execute format('grant all on %I to authenticated', t);
+  end loop;
+end $$;
